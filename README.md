@@ -126,12 +126,3 @@ Kotlin, Jetpack Compose, Material 3. Requires JDK 17 and Android SDK 35.
 | `ui/` | Settings app |
 
 </details>
-
-## 💜 Credits
-
-Maintainer & Developer: **McNeil Maseko**.
-Original behavior and concept inspired by [Dynamic Island for Windows](https://github.com/mihailkotovski/DynamicIsland) (mihailkotovski). Lyrics powered by [LRCLIB](https://lrclib.net).
-
-<div align="center">
-<sub>Font <a href="https://github.com/rsms/inter">Inter</a> — SIL OFL 1.1 · Icons <a href="https://ionic.io/ionicons">Ionicons</a> — MIT</sub>
-</div>
