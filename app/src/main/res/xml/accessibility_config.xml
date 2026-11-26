@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    canRetrieveWindowContent and canTakeScreenshot are only needed for navigators: many of them write
+    distance and maneuvers only on their own screen. Also reads timer and stopwatch time in Clock —
+    in case their notifications are off — and the payment amount on the wallet or bank screen while it is
+    open: bank notifications often arrive later or not at all. The island reads no other apps.
+    Window list (flagRetrieveInteractiveWindows, typeWindowsChanged) — only to know if the
+    keyboard is open while you reply to a notification right in the island.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:canTakeScreenshot="true"
+    android:description="@string/a11y_desc"
+    android:notificationTimeout="100" />

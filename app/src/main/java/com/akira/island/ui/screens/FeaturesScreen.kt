@@ -1,0 +1,311 @@
+package com.akira.island.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Reply
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.ChatBubble
+import androidx.compose.material.icons.rounded.Circle
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.FormatLineSpacing
+import androidx.compose.material.icons.rounded.Gesture
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.ScreenRotation
+import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.UnfoldLess
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.akira.island.core.Tints
+import com.akira.island.core.tr
+import com.akira.island.data.AccentMode
+import com.akira.island.data.IslandSettings
+import com.akira.island.data.SettingsRepo
+import com.akira.island.island.FitText
+import com.akira.island.island.onAccent
+import com.akira.island.island.resolveAccent
+import com.akira.island.ui.ChoiceDialog
+import com.akira.island.ui.Group
+import com.akira.island.ui.GroupItem
+import com.akira.island.ui.GroupSlider
+import com.akira.island.ui.GroupToggle
+import com.akira.island.ui.Page
+import com.akira.island.ui.Pos
+import com.akira.island.ui.Screen
+import com.akira.island.ui.SectionHeader
+import com.akira.island.ui.Tile
+import com.akira.island.ui.Ui
+import androidx.compose.material.icons.rounded.UnfoldMore
+import androidx.compose.material.icons.rounded.HourglassBottom
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.FlashlightOn
+import androidx.compose.material.icons.rounded.Screenshot
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.akira.island.data.QuickAction
+
+@Composable
+fun FeaturesScreen(open: (Screen) -> Unit) {
+    val s by SettingsRepo.state.collectAsState()
+    var confirmReset by remember { mutableStateOf(false) }
+
+    Page(tr("Features")) {
+        SectionHeader(tr("What the island shows"))
+        Group {
+            GroupItem(Pos.First, Icons.Rounded.Dashboard, tr("Dynamic cards"),
+                tr("Music, calls, timers, flashlight, navigation"),
+                color = Tile.Purple, onClick = { open(Screen.CARDS) }) { Arrow() }
+            GroupItem(Pos.Middle, Icons.Rounded.ChatBubble, tr("Notifications"),
+                tr("App messages with replies right in the island"),
+                color = Tile.Blue, onClick = { open(Screen.NOTIFICATIONS) }) { Arrow() }
+            GroupItem(Pos.Middle, Icons.Rounded.NotificationsActive, tr("Events"),
+                tr("Charging, Wi-Fi, headphones, payments, alarm"),
+                color = Tile.Orange, onClick = { open(Screen.EVENTS) }) { Arrow() }
+            GroupItem(Pos.Last, Icons.Rounded.LibraryMusic, tr("Lyrics"),
+                tr("Synced lyrics in the expanded player"),
+                color = Tile.Pink, onClick = { open(Screen.LYRICS) }) { Arrow() }
+        }
+
+        SectionHeader(tr("Controls"))
+        Group {
+            GroupItem(Pos.First, Icons.Rounded.Gesture, tr("Gestures"), tr("Taps and swipes on the capsule"),
+                color = Tile.Teal, onClick = { open(Screen.GESTURES) }) { Arrow() }
+            GroupItem(Pos.Middle, Icons.Rounded.Tune, tr("Behavior"),
+                tr("When to show and collapse the island, haptics"),
+                color = Tile.Indigo, onClick = { open(Screen.BEHAVIOR) }) { Arrow() }
+            GroupItem(Pos.Last, Icons.Rounded.NotificationsOff, tr("System banners"),
+                tr("So only the island shows calls, timers and battery"),
+                color = Tile.Red, onClick = { open(Screen.BANNERS) }) { Arrow() }
+        }
+
+        SectionHeader(tr("General"))
+        Group {
+            GroupItem(Pos.Single, Icons.Rounded.Restore, tr("Reset all settings"),
+                tr("Back to how it was after installing"),
+                onClick = { confirmReset = true }, color = Tile.Gray)
+        }
+    }
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            containerColor = Ui.Card,
+            title = { Text(tr("Reset settings?")) },
+            text = {
+                Text(tr("Size, colors, animations, cards and events go back to their defaults."))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    SettingsRepo.reset()
+                    confirmReset = false
+                }) { Text(tr("Reset"), color = Ui.Primary) }
+            },
+            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(tr("Cancel"), color = Ui.Sub) } },
+        )
+    }
+}
+
+@Composable
+fun BehaviorScreen(onBack: () -> Unit) {
+    val s by SettingsRepo.state.collectAsState()
+    var collapseDialog by remember { mutableStateOf(false) }
+
+    Page(tr("Behavior"), onBack) {
+        SectionHeader(tr("When to show"))
+        Group {
+            GroupToggle(Pos.First, Icons.Rounded.VisibilityOff, tr("Hide the empty capsule"),
+                tr("Show the capsule only when it has something in it"),
+                s.hideIdle, color = Tile.Gray) { v -> SettingsRepo.update { copy(hideIdle = v) } }
+            GroupToggle(Pos.Middle, Icons.Rounded.ScreenRotation, tr("Hide in landscape"),
+                tr("Stays out of games and videos"),
+                s.hideInLandscape, color = Tile.Gray) { v -> SettingsRepo.update { copy(hideInLandscape = v) } }
+            GroupToggle(Pos.Last, Icons.Rounded.Apps, tr("Hide the player in its own app"),
+                tr("The music card hides while the player itself is open"),
+                s.hideWhenPlayerOpen, color = Tile.Blue) { v -> SettingsRepo.update { copy(hideWhenPlayerOpen = v) } }
+        }
+
+        SectionHeader(tr("Schedule"))
+        Group {
+            GroupToggle(if (s.scheduleOn) Pos.First else Pos.Single, Icons.Rounded.Schedule, tr("On a schedule"),
+                tr("The island shows only from ${hourLabel(s.scheduleFrom)} to ${hourLabel(s.scheduleTo)}"),
+                s.scheduleOn, color = Tile.Indigo) { v -> SettingsRepo.update { copy(scheduleOn = v) } }
+            if (s.scheduleOn) {
+                GroupSlider(Pos.Middle, Icons.Rounded.WbSunny, tr("From"), s.scheduleFrom.toFloat(), 0f..23f,
+                    hourLabel(s.scheduleFrom), steps = 22, color = Tile.Orange) { v -> SettingsRepo.update { copy(scheduleFrom = v.toInt()) } }
+                GroupSlider(Pos.Last, Icons.Rounded.Bedtime, tr("To"), s.scheduleTo.toFloat(), 0f..23f,
+                    hourLabel(s.scheduleTo), steps = 22, color = Tile.Purple) { v -> SettingsRepo.update { copy(scheduleTo = v.toInt()) } }
+            }
+        }
+
+        SectionHeader(tr("Expanded island"))
+        Group {
+            GroupItem(Pos.First, Icons.Rounded.UnfoldLess, tr("Collapse the expanded island"), collapseLabel(s.autoCollapseSec),
+                color = Tile.Indigo, onClick = { collapseDialog = true })
+            GroupToggle(Pos.Last, Icons.Rounded.Circle, tr("Second activity alongside"),
+                tr("With two activities, the second one is a small circle next to the capsule, like on iPhone"),
+                s.bubble, color = Tile.Purple) { v ->
+                SettingsRepo.update { copy(bubble = v) }
+            }
+        }
+
+        SectionHeader(tr("Tapping the empty island"))
+        Group {
+            GroupToggle(if (s.idleExpand) Pos.First else Pos.Single, Icons.Rounded.UnfoldMore, tr("Expand"),
+                tr("Clock, battery and the buttons below. Off — tapping does nothing"),
+                s.idleExpand, color = Tile.Blue) { v -> SettingsRepo.update { copy(idleExpand = v) } }
+            if (s.idleExpand) {
+                QuickAction.entries.forEachIndexed { i, a ->
+                    GroupToggle(if (i == QuickAction.entries.lastIndex) Pos.Last else Pos.Middle, a.settingsIcon, a.title,
+                        a.hint, a in s.quickActions, color = Tile.Orange) { v ->
+                        SettingsRepo.update { copy(quickActions = QuickAction.entries.filter { if (it == a) v else it in quickActions }) }
+                    }
+                }
+            }
+        }
+
+        SectionHeader(tr("Feedback"))
+        Group {
+            GroupToggle(Pos.First, Icons.Rounded.Vibration, tr("Haptics"),
+                tr("When opening, closing and tapping the capsule"),
+                s.haptics, color = Tile.Pink) { v -> SettingsRepo.update { copy(haptics = v) } }
+            GroupToggle(Pos.Last, Icons.Rounded.LightMode, tr("Turn on the screen"),
+                tr("When a timer, alarm or incoming call rings, the screen turns on and stays on while it rings"),
+                s.wakeForAlerts, color = Tile.Yellow) { v -> SettingsRepo.update { copy(wakeForAlerts = v) } }
+        }
+    }
+
+    if (collapseDialog) {
+        ChoiceDialog(tr("Collapse the expanded island"), listOf(0, 5, 10, 20, 30), s.autoCollapseSec, ::collapseLabel,
+            { v -> SettingsRepo.update { copy(autoCollapseSec = v) } }) { collapseDialog = false }
+    }
+}
+
+private fun hourLabel(h: Int) = "%d:00".format(h)
+
+private fun collapseLabel(sec: Int) = if (sec <= 0) tr("Only by tapping outside or swiping up")
+    else tr("After $sec seconds without a touch")
+
+private val accentColors = listOf(
+    0xFF0A84FF, 0xFFC6C3F7, 0xFF64D2FF, 0xFF34C759, 0xFFFFD60A, 0xFFFF9F0A,
+    0xFFFF453A, 0xFFFF2D92, 0xFFBF5AF2, 0xFFFFFFFF,
+)
+
+@Composable
+fun NotificationsScreen(onBack: () -> Unit) {
+    val s by SettingsRepo.state.collectAsState()
+    var accentDialog by remember { mutableStateOf(false) }
+
+    Page(tr("Notifications"), onBack) {
+        Group {
+            GroupToggle(Pos.First, Icons.Rounded.ChatBubble, tr("App notifications"),
+                tr("Messages from Telegram, WhatsApp, email and other apps as a card in the island, like on iPhone"),
+                s.cardMessages, color = Tile.Blue) { v -> SettingsRepo.update { copy(cardMessages = v) } }
+            GroupToggle(Pos.Middle, Icons.AutoMirrored.Rounded.Reply, tr("Notification buttons"),
+                tr("Reply with typing right in the island, and Mark as read"),
+                s.msgActions, color = Tile.Indigo) { v -> SettingsRepo.update { copy(msgActions = v) } }
+            GroupToggle(Pos.Middle, Icons.Rounded.Smartphone, tr("From the open app"),
+                tr("Also show notifications from the app that's on screen"),
+                s.msgInApp, color = Tile.Teal) { v ->
+                SettingsRepo.update { copy(msgInApp = v) }
+            }
+            GroupSlider(
+                Pos.Last, Icons.Rounded.FormatLineSpacing, tr("Text lines"),
+                value = s.msgLines.toFloat(), range = 1f..6f, steps = 4, label = "${s.msgLines}", color = Tile.Green,
+            ) { v -> SettingsRepo.update { copy(msgLines = Math.round(v)) } }
+        }
+
+        SectionHeader(tr("Button color"))
+        AccentPreview(s)
+        GroupItem(Pos.Single, Icons.Rounded.Palette, tr("Button color"), "${s.accentMode.title} — ${s.accentMode.hint}",
+            onClick = { accentDialog = true }, color = Tile.Orange)
+        if (s.accentMode == AccentMode.CUSTOM) {
+            Swatches(accentColors, s.accentColor) { c -> SettingsRepo.update { copy(accentColor = c) } }
+        }
+    }
+
+    if (accentDialog) {
+        ChoiceDialog(tr("Button color"), AccentMode.entries, s.accentMode, { "${it.title} — ${it.hint}" },
+            { v -> SettingsRepo.update { copy(accentMode = v) } }) { accentDialog = false }
+    }
+}
+
+@Composable
+private fun AccentPreview(s: IslandSettings) {
+    val context = LocalContext.current
+    val accent = resolveAccent(context, s, Tints.Orange)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Color.Black).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        PreviewTile(tr("Reply"), accent, Modifier.weight(1f))
+        PreviewTile(tr("Mark as read"), accent, Modifier.weight(2f))
+        Box(Modifier.size(40.dp).clip(CircleShape).background(accent), contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.ArrowUpward, null, tint = onAccent(accent), modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+@Composable
+private fun PreviewTile(title: String, accent: Color, modifier: Modifier) {
+    Box(
+        modifier.height(40.dp).clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.12f)).padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        FitText(title, accent, 14.sp, 10.sp, FontWeight.SemiBold)
+    }
+}
+
+private val QuickAction.settingsIcon: ImageVector
+    get() = when (this) {
+        QuickAction.TIMER -> Icons.Rounded.HourglassBottom
+        QuickAction.STOPWATCH -> Icons.Rounded.Timer
+        QuickAction.FLASHLIGHT -> Icons.Rounded.FlashlightOn
+        QuickAction.SCREENSHOT -> Icons.Rounded.Screenshot
+        QuickAction.CAMERA -> Icons.Rounded.PhotoCamera
+        QuickAction.LOCK -> Icons.Rounded.Lock
+    }
+
+private val QuickAction.hint: String?
+    get() = when (this) {
+        QuickAction.SCREENSHOT -> tr("The island hides for a moment, so it's not in the shot (Android 9+)")
+        QuickAction.LOCK -> tr("Turns the screen off like the power button (Android 9+)")
+        else -> null
+    }

@@ -1,0 +1,886 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
+package com.akira.island.island
+
+import android.content.Context
+import android.text.format.DateFormat
+import android.os.SystemClock
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.core.Animatable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.abs
+import kotlin.math.sin
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.HeartBroken
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Screenshot
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.akira.island.core.BatteryInfo
+import com.akira.island.core.ChargingTints
+import com.akira.island.service.SystemEvents
+import com.akira.island.core.CallInfo
+import com.akira.island.core.CallState
+import com.akira.island.core.ChronoInfo
+import com.akira.island.core.Controls
+import com.akira.island.core.IslandBus
+import com.akira.island.core.Lang
+import com.akira.island.core.LiveInfo
+import com.akira.island.core.Lyrics
+import com.akira.island.core.LyricsStatus
+import com.akira.island.core.MediaInfo
+import com.akira.island.core.PlayerAction
+import com.akira.island.core.ProgressInfo
+import com.akira.island.core.StopwatchState
+import com.akira.island.core.SportInfo
+import com.akira.island.core.Tints
+import com.akira.island.core.TimerState
+import com.akira.island.core.TorchState
+import com.akira.island.core.formatDuration
+import com.akira.island.core.tr
+import com.akira.island.data.IslandSettings
+import com.akira.island.data.QuickAction
+import com.akira.island.data.SettingsRepo
+import com.akira.island.service.ClockApps
+import com.akira.island.service.ClockControl
+import com.akira.island.service.ClockScreenReader
+import java.text.SimpleDateFormat
+import java.util.Date
+
+private val Dim = Color.White.copy(alpha = 0.55f)
+
+@Composable
+fun ExpandedContent(act: Act, s: IslandSettings, lyrics: Lyrics?, battery: BatteryInfo, width: Dp) {
+    if (act is Act.TorchA) {
+        TorchCard(act.t, s)
+        return
+    }
+    Box(Modifier.width(width).padding(start = 22.dp, end = 22.dp, top = cameraInset(s), bottom = 20.dp)) {
+        when (act) {
+            is Act.MediaA -> MediaExpanded(act.m, s, lyrics)
+            is Act.TimerA -> TimerExpanded(act.t, s)
+            is Act.StopwatchA -> StopwatchExpanded(act.w)
+            is Act.TorchA -> Unit
+            is Act.ChronoA -> ChronoExpanded(act.c)
+            is Act.ProgressA -> ProgressExpanded(act.p)
+            is Act.ChargingA -> ChargingExpanded(act.b)
+            is Act.LiveA -> LiveExpanded(act.l)
+            is Act.CallA -> CallExpanded(act.c)
+            is Act.AlarmA -> AlarmExpanded(act.a, s)
+            is Act.SportA -> SportExpanded(act.s)
+            else -> IdleExpanded(s, battery)
+        }
+    }
+}
+
+@Composable
+private fun MediaExpanded(m: MediaInfo, s: IslandSettings, lyrics: Lyrics?) {
+    val context = LocalContext.current
+    val now = rememberNow(100, active = m.playing)
+    val pos = m.positionAt(now)
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Art(m.art, 60.dp, 14.4.dp, Modifier.clickable { Controls.openApp(context, m.pkg) })
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(m.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE))
+                if (m.artist.isNotBlank()) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(m.artist, color = Tints.Gray, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            val egg by IslandBus.egg.collectAsState()
+            if (egg) SoulHeart(Modifier.size(24.dp)) else Equalizer(m.accent, m.playing, s.liveEqualizer, Modifier.size(30.dp, 24.dp))
+        }
+
+        val lines = lyrics?.takeIf { it.key == m.key && s.lyricsEnabled && it.lines.isNotEmpty() }
+        val status by IslandBus.lyricsStatus.collectAsState()
+        if (lines != null) {
+            Spacer(Modifier.height(14.dp))
+            KaraokeLine(lines, pos, s)
+        } else if (s.lyricsEnabled && status?.first == m.key) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                if (status?.second == LyricsStatus.LOADING) tr("Looking for lyrics…") else tr("No lyrics found"),
+                color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp,
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(formatDuration(pos), color = Tints.Gray, fontSize = 11.sp, style = Digits.copy(fontWeight = FontWeight.Normal),
+                modifier = Modifier.width(34.dp))
+            SeekBar(
+                fraction = if (m.durationMs > 0) pos.toFloat() / m.durationMs else 0f,
+                color = Color.White,
+                enabled = m.canSeek && m.durationMs > 0,
+                onSeek = { f -> Controls.seekTo((f * m.durationMs).toLong()) },
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                if (m.durationMs > 0) "-" + formatDuration(m.durationMs - pos) else "",
+                color = Tints.Gray, fontSize = 11.sp, style = Digits.copy(fontWeight = FontWeight.Normal), textAlign = TextAlign.End,
+                modifier = Modifier.width(38.dp),
+            )
+        }
+        MediaControls(m.like, m.dislike, m.playing)
+    }
+}
+
+@Composable
+private fun MediaControls(like: PlayerAction?, dislike: PlayerAction?, playing: Boolean) {
+    val context = LocalContext.current
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            like?.let { a ->
+                RoundButton(if (a.on) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, size = 30.dp, bg = Color.Transparent,
+                    fg = if (a.on) Tints.Red else Dim, iconScale = 0.66f) { Controls.playerAction(a.action) }
+            }
+            dislike?.let { a ->
+                RoundButton(Icons.Rounded.HeartBroken, size = 30.dp, bg = Color.Transparent, fg = Dim, iconScale = 0.62f) {
+                    Controls.playerAction(a.action)
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            RoundButton(Ios.back, size = 44.dp, bg = Color.Transparent, iconScale = 0.636f) { Controls.prev() }
+            RoundButton(if (playing) Ios.pause else Ios.play, size = 48.dp, bg = Color.Transparent, iconScale = 0.667f) {
+                Controls.playPause()
+            }
+            RoundButton(Ios.forward, size = 44.dp, bg = Color.Transparent, iconScale = 0.636f) { Controls.next() }
+        }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            RoundButton(Ios.airplay, size = 36.dp, bg = Color.Transparent, fg = Dim, iconScale = 0.6f) { Controls.openOutput(context) }
+        }
+    }
+}
+
+@Composable
+private fun CallExpanded(c: CallInfo) {
+    val context = LocalContext.current
+    val now = rememberWallNow(500)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(50.dp).clip(CircleShape).background(Color(0xFF3A3A3C)), contentAlignment = Alignment.Center) {
+            if (c.avatar != null) {
+                Image(c.avatar, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Text(c.name.take(1).uppercase(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f).clickable { Controls.openCall(context, c) }) {
+            Text(c.name, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+            if (c.state == CallState.CONNECTED) {
+                Text(formatDuration(now - c.base), color = Tints.Green, fontSize = 15.sp, style = Digits)
+            } else {
+                Text(c.statusText(), color = Tints.Orange, fontSize = 15.sp)
+            }
+        }
+        RoundButton(Ios.call, size = 48.dp, bg = Tints.Red, iconScale = 0.46f, iconRotation = 135f) {
+            Controls.endCall(context, c)
+        }
+    }
+}
+
+@Composable
+private fun KaraokeLine(lyrics: Lyrics, pos: Long, s: IslandSettings) {
+    val index = lyrics.indexAt(pos)
+    AnimatedContent(
+        targetState = index,
+        transitionSpec = {
+            (slideInVertically(tween(320)) { it / 2 } + fadeIn(tween(320))) togetherWith
+                (slideOutVertically(tween(320)) { -it / 2 } + fadeOut(tween(200)))
+        },
+        label = "lyrics",
+    ) { i ->
+        val line = lyrics.lines.getOrNull(i)
+        val text = line?.text?.ifBlank { null } ?: lyrics.lines.getOrNull(i + 1)?.text?.takeIf { i < 0 } ?: "• • •"
+        val start = line?.timeMs ?: 0L
+        val end = lyrics.lines.getOrNull(i + 1)?.timeMs ?: (start + 4_000)
+        val sung = if (line == null) 0f else ((pos - start).toFloat() / (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
+        val chars = if (s.reduceEffects) text.length else (text.length * (sung / 0.85f).coerceAtMost(1f)).toInt()
+        Text(
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = Color.White)) { append(text.take(chars)) }
+                withStyle(SpanStyle(color = Color.White.copy(alpha = 0.32f))) { append(text.drop(chars)) }
+            },
+            fontSize = 14.5.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun SeekBar(
+    fraction: Float,
+    color: Color,
+    enabled: Boolean,
+    onSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var drag by remember { mutableStateOf<Float?>(null) }
+    val seek by rememberUpdatedState(onSeek)
+    val thick by animateDpAsState(if (drag != null) 9.dp else 5.dp, label = "thick")
+    val shown = (drag ?: fraction).coerceIn(0f, 1f)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(22.dp)
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                detectHorizontalDragGestures(
+                    onDragStart = { o -> drag = (o.x / size.width).coerceIn(0f, 1f) },
+                    onDragEnd = {
+                        drag?.let(seek)
+                        drag = null
+                    },
+                    onDragCancel = { drag = null },
+                ) { change, _ ->
+                    change.consume()
+                    drag = (change.position.x / size.width).coerceIn(0f, 1f)
+                }
+            }
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                detectTapGestures { o -> seek((o.x / size.width).coerceIn(0f, 1f)) }
+            },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(thick)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.2f)),
+        ) {
+            Box(Modifier.fillMaxWidth(shown).fillMaxHeight().background(if (enabled) color else color.copy(alpha = 0.6f)))
+        }
+    }
+}
+
+@Composable
+private fun TimerExpanded(t: TimerState, s: IslandSettings) {
+    val now = rememberNow(200)
+    if (t.ringing) {
+        val wobble = rememberInfiniteTransition(label = "bell")
+        val angle = if (s.reduceEffects || !s.fxShake) null
+        else wobble.animateFloat(-16f, 16f, infiniteRepeatable(tween(110), RepeatMode.Reverse), label = "a")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(50.dp).clip(CircleShape).background(Tints.Orange.copy(alpha = 0.22f)), contentAlignment = Alignment.Center) {
+                Icon(Ios.bell, null, tint = Tints.Orange,
+                    modifier = Modifier.size(28.dp).graphicsLayer { rotationZ = angle?.value ?: 0f })
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(tr("Timer"), color = Tints.Orange, fontSize = 15.sp)
+                Text(tr("Time's up"), color = Tints.Orange, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+            }
+            PillButton(Ios.stop, tr("Stop"), bg = Tints.Orange, fg = Color.Black) { Controls.cancelTimer() }
+        }
+        return
+    }
+    val left = t.left(now)
+    val color = if (left <= 10_000 && !t.paused) Tints.Red else Tints.Orange
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RoundButton(if (t.paused) Ios.play else Ios.pause, size = 50.dp,
+            bg = color.copy(alpha = 0.25f), fg = color, iconScale = 0.5f) {
+            if (t.paused) Controls.resumeTimer() else Controls.pauseTimer()
+        }
+        Spacer(Modifier.width(12.dp))
+        RoundButton(Ios.close, size = 50.dp, bg = Color.White.copy(alpha = 0.2f), iconScale = 0.44f) { Controls.cancelTimer() }
+        Spacer(Modifier.weight(1f))
+        Text(if (t.paused) tr("Paused") else tr("Timer"), color = color, fontSize = 15.sp, modifier = Modifier.padding(top = 14.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(formatDuration(left + 999), color = color, fontSize = 44.sp, style = Digits.copy(fontWeight = FontWeight.Normal), maxLines = 1)
+    }
+}
+
+@Composable
+private fun StopwatchExpanded(w: StopwatchState) {
+    val now = rememberNow(100, active = w.running)
+    val elapsed = w.elapsed(now)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RoundButton(if (w.running) Ios.pause else Ios.play, size = 50.dp,
+            bg = Tints.Orange.copy(alpha = 0.25f), fg = Tints.Orange, iconScale = 0.5f) { Controls.toggleStopwatch() }
+        Spacer(Modifier.width(12.dp))
+        if (w.running) {
+            RoundButton(Ios.close, size = 50.dp, bg = Color.White.copy(alpha = 0.2f), iconScale = 0.44f) { Controls.stopStopwatch() }
+        } else {
+            RoundButton(Ios.refresh, size = 50.dp, bg = Color.White.copy(alpha = 0.2f), iconScale = 0.46f) {
+                Controls.startStopwatch()
+                Controls.toggleStopwatch()
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Text(formatDuration(elapsed) + ",%d".format((elapsed % 1000) / 100), color = Tints.Orange, fontSize = 40.sp,
+            style = Digits.copy(fontWeight = FontWeight.Normal), maxLines = 1)
+    }
+}
+
+@Composable
+private fun TorchCard(t: TorchState, s: IslandSettings) {
+    val haptic = rememberHaptic()
+    val max = t.maxLevel.coerceAtLeast(1)
+    var level by remember { mutableFloatStateOf(t.level.toFloat()) }
+    LaunchedEffect(t.level) { level = t.level.toFloat() }
+    val share = if (t.on) (if (max > 1) level / max else 1f) else 0f
+    val intensity by animateFloatAsState(share, spring(dampingRatio = 0.7f, stiffness = 300f), label = "glow")
+    val breath = rememberInfiniteTransition(label = "breath")
+    val wave = if (s.reduceEffects) null else breath.animateFloat(0f, 1f, infiniteRepeatable(tween(1050, easing = LinearEasing)), label = "w")
+    val flare = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val label = if (max > 1 && t.on) tr("Flashlight · ${(share * 100).toInt()}%") else tr("Flashlight")
+
+    Box(
+        Modifier
+            .size(200.dp, 200.dp)
+            .pointerInput(max) {
+                detectVerticalDragGestures(
+                    onDragStart = { IslandBus.lastTouch = SystemClock.elapsedRealtime() },
+                ) { change, dy ->
+                    change.consume()
+                    IslandBus.lastTouch = SystemClock.elapsedRealtime()
+                    if (max <= 1) return@detectVerticalDragGestures
+                    val before = Math.round(level)
+                    level = (level - dy / (size.height * 0.6f) * max).coerceIn(1f, max.toFloat())
+                    val after = Math.round(level)
+                    if (after != before) {
+                        haptic()
+                        Controls.torchLevel(after)
+                        if (!s.reduceEffects) scope.launch {
+                            flare.snapTo(1f)
+                            flare.animateTo(0f, tween(480, easing = FastOutSlowInEasing))
+                        }
+                    }
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures {
+                    haptic()
+                    Controls.torchOff()
+                }
+            },
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val pulse = wave?.let { 0.85f + 0.15f * sin(it.value * 2 * Math.PI).toFloat() } ?: 1f
+            val glow = (0.35f + 0.65f * intensity) * pulse * (1f + 0.4f * flare.value)
+            val r = 60.dp.toPx() * (1f + 0.15f * flare.value)
+            val c = Offset(size.width / 2, 40.dp.toPx() + 60.dp.toPx())
+            drawCircle(
+                Brush.radialGradient(
+                    0f to Tints.Yellow.copy(alpha = (0.55f * glow).coerceAtMost(1f)),
+                    0.55f to Tints.Yellow.copy(alpha = (0.3f * glow).coerceAtMost(1f)),
+                    1f to Tints.Yellow.copy(alpha = 0f),
+                    center = c, radius = r,
+                ),
+                radius = r, center = c,
+            )
+        }
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Ios.flashlight, null, tint = if (t.on) Tints.Yellow else Color.White.copy(alpha = 0.4f),
+                modifier = Modifier.padding(top = 20.dp).size(58.dp),
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(label, color = Color.White.copy(alpha = 0.7f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun ChronoExpanded(c: ChronoInfo) {
+    val context = LocalContext.current
+    val now = rememberWallNow(500)
+    if (c.isRecording) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .then(
+                    if (c.stop != null) {
+                        Modifier.clickable { Controls.send(context, c.stop) }
+                    } else {
+                        Modifier
+                    }
+                )
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(Tints.Red))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    tr("Tap here to stop recording"),
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(formatDuration(c.elapsed(now)), color = Tints.Red, fontSize = 16.sp, style = Digits)
+        }
+        return
+    }
+    if (c.key.startsWith(ClockScreenReader.KEY_PREFIX) || c.pause != null || c.resume != null || ClockApps.isClock(context, c.pkg)) {
+        ClockChrono(c)
+        return
+    }
+    Row(Modifier.clickable { Controls.openApp(context, c.pkg) }, verticalAlignment = Alignment.CenterVertically) {
+        AppIcon(c.icon, 46.dp, Ios.timer, Tints.Orange)
+        Spacer(Modifier.width(14.dp))
+        Text(c.title, color = Tints.Orange, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(top = 12.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(formatDuration(c.elapsed(now)), color = Tints.Orange, fontSize = 40.sp,
+            style = Digits.copy(fontWeight = FontWeight.Normal), maxLines = 1)
+    }
+}
+
+@Composable
+private fun ClockChrono(c: ChronoInfo) {
+    val context = LocalContext.current
+    val paused = c.pausedMs != null
+    val now = rememberWallNow(if (paused) 1_000 else if (c.countDown) 250 else 100)
+    val value = c.elapsed(now)
+    val color = if (c.countDown && !paused && value <= 10_000) Tints.Red else Tints.Orange
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RoundButton(if (paused) Ios.play else Ios.pause, size = 50.dp, bg = color.copy(alpha = 0.25f), fg = color, iconScale = 0.5f) {
+            ClockControl.toggle(context, c)
+        }
+        Spacer(Modifier.width(12.dp))
+        RoundButton(if (c.countDown) Ios.close else Ios.refresh, size = 50.dp, bg = Color.White.copy(alpha = 0.2f),
+            iconScale = if (c.countDown) 0.44f else 0.46f) {
+            ClockControl.reset(context, c)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f).clickable { Controls.openApp(context, c.pkg) }, horizontalAlignment = Alignment.End) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AppIcon(c.icon, 16.dp, Ios.timer, color)
+                Spacer(Modifier.width(5.dp))
+                Text(if (paused) tr("Paused") else if (c.countDown) tr("Timer") else tr("Stopwatch"),
+                    color = color, fontSize = 14.sp, maxLines = 1)
+            }
+            val text = if (c.countDown) formatDuration(value + 999) else formatDuration(value) + ",%d".format((value % 1000) / 100)
+            Text(text, color = color, fontSize = 40.sp, style = Digits.copy(fontWeight = FontWeight.Normal), maxLines = 1, softWrap = false)
+        }
+    }
+}
+
+@Composable
+private fun ProgressExpanded(p: ProgressInfo) {
+    val context = LocalContext.current
+    Column(Modifier.clickable { Controls.openApp(context, p.pkg) }) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AppIcon(p.icon, 44.dp, Ios.download, Tints.Blue)
+            Spacer(Modifier.width(14.dp))
+            Text(p.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 2,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (!p.indeterminate) {
+                Spacer(Modifier.width(8.dp))
+                Text("${(p.fraction * 100).toInt()}%", color = Tints.Blue, fontSize = 18.sp, style = Digits)
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))) {
+            Box(Modifier.fillMaxWidth(if (p.indeterminate) 1f else p.fraction).fillMaxHeight().clip(CircleShape)
+                .background(if (p.indeterminate) Tints.Blue.copy(alpha = 0.4f) else Tints.Blue))
+        }
+    }
+}
+
+@Composable
+private fun LiveExpanded(l: LiveInfo) {
+    val context = LocalContext.current
+    val tint = liveTint(l.kind)
+    Row(verticalAlignment = Alignment.Top) {
+        Box(Modifier.padding(top = 4.dp).size(62.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+            LiveGlyph(l, 34.dp, tint)
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f).padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (l.distance != null) {
+                Text(l.distance, color = Color.White, fontSize = 27.sp, style = Digits.copy(fontWeight = FontWeight.Bold), maxLines = 1)
+            } else {
+                Text(l.title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (l.text.isNotEmpty()) {
+                Text(l.text, color = Tints.Gray, fontSize = 14.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            val line = l.eta ?: l.sub.takeIf { it.isNotEmpty() }
+            if (line != null) {
+                Text(line, color = tint, fontSize = 14.sp, style = Digits, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Row(
+                Modifier
+                    .padding(top = 6.dp)
+                    .clip(CircleShape)
+                    .background(tint)
+                    .clickable {
+                        if (!Controls.send(context, l.open)) Controls.openApp(context, l.pkg)
+                        Controls.collapse()
+                    }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Ios.navigate, null, tint = Color.Black, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(tr("Open"), color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChargingExpanded(b: BatteryInfo) {
+    val context = LocalContext.current
+    val screenOn by IslandBus.screenOn.collectAsState()
+    LaunchedEffect(b.charging, screenOn) {
+        if (!b.charging || !screenOn) return@LaunchedEffect
+        while (isActive) {
+            delay(1500)
+            SystemEvents.resampleBattery(context)
+        }
+    }
+
+    val tintColor = ChargingTints.colorFor(b.speed)
+    val tintBrush = ChargingTints.brushFor(b.speed)
+    val animatedLevel by animateFloatAsState(
+        targetValue = b.level.coerceIn(0, 100) / 100f,
+        animationSpec = tween(600, easing = FastOutSlowInEasing),
+        label = "charging_level"
+    )
+
+    val metricsText = remember(b.milliamps, b.voltageMv, b.tempC) {
+        listOfNotNull(
+            b.milliamps?.let { "%,d mA".format(it) },
+            b.voltageMv?.let { "%,d mV".format(it) },
+            b.tempC?.let { "%.1f °C".format(it) },
+        ).joinToString(" · ").takeIf { it.isNotBlank() }
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(tintBrush)
+                .padding(2.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF141414)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Ios.flash, null, tint = tintColor, modifier = Modifier.size(26.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                tr(b.speed.label) + (b.watts?.takeIf { it >= 1f }?.let { " · ~${Math.round(it)} W" } ?: ""),
+                color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            )
+            metricsText?.let { text ->
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text,
+                    color = Color.White.copy(alpha = 0.55f),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Box(Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.15f))) {
+                Box(Modifier.fillMaxWidth(animatedLevel).fillMaxHeight().clip(CircleShape).background(tintBrush))
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Text("${b.level}%", color = tintColor, fontSize = 26.sp, style = Digits)
+    }
+}
+
+@Composable
+private fun IdleExpanded(s: IslandSettings, battery: BatteryInfo) {
+    val context = LocalContext.current
+    val now = rememberWallNow(1000)
+    val time = DateFormat.getTimeFormat(context).format(Date(now))
+    val date = SimpleDateFormat(if (Lang.en) "EEEE, MMMM d" else "EEEE, d MMMM", Lang.locale).format(Date(now))
+        .replaceFirstChar { it.titlecase(Lang.locale) }
+    val alarm by IslandBus.nextAlarm.collectAsState()
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(clockText(time, 36.sp), color = Color.White, fontSize = 36.sp, style = Digits)
+                Text(date, color = Dim, fontSize = 14.sp)
+                alarm?.takeIf { it.triggerAt - now in 1..86_400_000L }?.let { a ->
+                    Row(
+                        Modifier.padding(top = 3.dp).clickable { openAlarm(context, a) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Ios.alarm, null, tint = AlarmTint, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(tr("${wakeTime(context, a.triggerAt)} · in ${durationWords(a.triggerAt - now)}"),
+                            color = AlarmTint, fontSize = 13.sp, maxLines = 1)
+                    }
+                }
+            }
+            if (battery.level >= 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (battery.charging) Ios.batteryCharging else Ios.batteryFull, null,
+                        tint = when {
+                            battery.charging -> ChargingTints.colorFor(battery.speed)
+                            battery.level <= 15 -> Tints.Red
+                            else -> Color.White
+                        },
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("${battery.level}%", color = Color.White, fontSize = 16.sp, style = Digits)
+                }
+            }
+        }
+        val actions = s.quickActions
+        if (actions.isEmpty()) return@Column
+        Spacer(Modifier.height(16.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (QuickAction.TIMER in actions) Row(
+                Modifier.fillMaxWidth().clip(CircleShape).background(Color.White.copy(alpha = 0.08f)).padding(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RoundButton(Ios.remove, size = 38.dp, iconScale = 0.44f) {
+                    SettingsRepo.update { copy(timerMinutes = (timerMinutes - 1).coerceAtLeast(1)) }
+                }
+                Text(
+                    tr("${s.timerMinutes} min"), color = Color.White, fontSize = 16.sp, style = Digits,
+                    textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
+                )
+                RoundButton(Ios.add, size = 38.dp, iconScale = 0.44f) {
+                    SettingsRepo.update { copy(timerMinutes = (timerMinutes + 1).coerceAtMost(99)) }
+                }
+                Spacer(Modifier.width(8.dp))
+                PillButton(Ios.play, tr("Timer"), bg = Tints.Orange, fg = Color.Black) {
+                    Controls.startTimer(s.timerMinutes)
+                    Controls.expand("timer")
+                }
+            }
+            actions.filter { it != QuickAction.TIMER }.chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    row.forEach { QuickButton(it, context, Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickButton(a: QuickAction, context: Context, modifier: Modifier) {
+    val icon = when (a) {
+        QuickAction.STOPWATCH -> Ios.stopwatch
+        QuickAction.FLASHLIGHT -> Ios.flashlight
+        QuickAction.SCREENSHOT -> Icons.Rounded.Screenshot
+        QuickAction.CAMERA -> Icons.Rounded.PhotoCamera
+        QuickAction.LOCK -> Ios.lock
+        QuickAction.TIMER -> Ios.timer
+    }
+    PillButton(icon, a.short, modifier) {
+        when (a) {
+            QuickAction.STOPWATCH -> {
+                Controls.startStopwatch()
+                Controls.expand("stopwatch")
+            }
+            QuickAction.FLASHLIGHT -> {
+                Controls.torchOn()
+                Controls.collapse()
+            }
+            QuickAction.SCREENSHOT -> Controls.screenshot()
+            QuickAction.CAMERA -> {
+                Controls.collapse()
+                Controls.openCamera(context)
+            }
+            QuickAction.LOCK -> {
+                Controls.collapse()
+                Controls.lockScreen()
+            }
+            QuickAction.TIMER -> Controls.startTimer(SettingsRepo.current.timerMinutes)
+        }
+    }
+}
+
+@Composable
+private fun SportExpanded(s: SportInfo) {
+    val context = LocalContext.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable {
+                if (s.open != null) {
+                    runCatching { s.open.send() }.onFailure { Controls.openApp(context, s.pkg) }
+                } else {
+                    Controls.openApp(context, s.pkg)
+                }
+            }
+            .padding(vertical = 4.dp),
+    ) {
+        if (s.competition.isNotBlank()) {
+            Text(
+                s.competition,
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                if (s.homeBadge != null) {
+                    Image(s.homeBadge, null, Modifier.size(28.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                } else {
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(Color.DarkGray), contentAlignment = Alignment.Center) {
+                        Text(s.homeTeam.take(1), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    s.homeTeam,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                "${s.homeScore} - ${s.awayScore}",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                style = Digits,
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Text(
+                    s.awayTeam,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                )
+                Spacer(Modifier.width(8.dp))
+                if (s.awayBadge != null) {
+                    Image(s.awayBadge, null, Modifier.size(28.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                } else {
+                    Box(Modifier.size(28.dp).clip(CircleShape).background(Color.DarkGray), contentAlignment = Alignment.Center) {
+                        Text(s.awayTeam.take(1), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        if (!s.latestEvent.isNullOrBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    s.latestEvent,
+                    color = Tints.Green,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
